@@ -4,63 +4,65 @@
  * This code is in the public domain.
  */
 
-#include <libevdev/libevdev.h>
-#include <libevdev/libevdev-uinput.h>
-#include <stdio.h>
-#include <string.h>
 #include <fcntl.h>
+#include <libevdev/libevdev-uinput.h>
+#include <libevdev/libevdev.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Key mapping {{{1
 unsigned int key_map(unsigned int code) {
     switch (code) {
-        case KEY_BRIGHTNESSDOWN:    // my magical escape button
-            exit(0);
+    case KEY_BRIGHTNESSDOWN: // my magical escape button
+        exit(0);
 
-        case KEY_J:
-            return KEY_LEFT;
-        case KEY_K:
-            return KEY_DOWN;
-        case KEY_L:
-            return KEY_UP;
-        case KEY_SEMICOLON:
-            return KEY_RIGHT;
+    case KEY_H:
+        return KEY_LEFT;
+    case KEY_J:
+        return KEY_DOWN;
+    case KEY_K:
+        return KEY_UP;
+    case KEY_L:
+        return KEY_RIGHT;
 
-        case KEY_M:
-            return KEY_HOME;
-        case KEY_COMMA:
-            return KEY_PAGEDOWN;
-        case KEY_DOT:
-            return KEY_PAGEUP;
-        case KEY_SLASH:
-            return KEY_END;
+    case KEY_R:
+        return KEY_HOME;
+    case KEY_F:
+        return KEY_END;
+    case KEY_E:
+        return KEY_PAGEUP;
+    case KEY_D:
+        return KEY_PAGEDOWN;
+    case KEY_BACKSPACE:
+    case KEY_GRAVE:
+        return KEY_DELETE;
 
-        case KEY_B:
-            return KEY_SPACE;
+    case KEY_B:
+        return KEY_SPACE;
     }
     return 0;
 }
 
 // Blacklist keys for which I have a mapping, to try and train myself out of using them
 int blacklist(unsigned int code) {
-    switch (code) {
-        case KEY_UP:
-        case KEY_DOWN:
-        case KEY_RIGHT:
-        case KEY_LEFT:
-        case KEY_HOME:
-        case KEY_END:
-        case KEY_PAGEUP:
-        case KEY_PAGEDOWN:
-            return 1;
-    }
+    // switch (code) {
+    //     case KEY_UP:
+    //     case KEY_DOWN:
+    //     case KEY_RIGHT:
+    //     case KEY_LEFT:
+    //     case KEY_HOME:
+    //     case KEY_END:
+    //     case KEY_PAGEUP:
+    //     case KEY_PAGEDOWN:
+    //         return 1;
+    // }
     return 0;
 }
 
-
 // Global device handles {{{1
-struct libevdev *idev;
-struct libevdev_uinput *odev;
+struct libevdev* idev;
+struct libevdev_uinput* odev;
 int fd;
 
 // Ordered unique key buffer {{{1
@@ -69,7 +71,7 @@ unsigned int buffer[MAX_BUFFER];
 unsigned int n_buffer = 0;
 
 static int buffer_contains(unsigned int code) {
-    for (int i=0; i<n_buffer; i++)
+    for (int i = 0; i < n_buffer; i++)
         if (buffer[i] == code)
             return 1;
 
@@ -77,9 +79,9 @@ static int buffer_contains(unsigned int code) {
 }
 
 static int buffer_remove(unsigned int code) {
-    for (int i=0; i<n_buffer; i++)
+    for (int i = 0; i < n_buffer; i++)
         if (buffer[i] == code) {
-            memcpy(&buffer[i], &buffer[i+1], (n_buffer - i - 1) * sizeof(*buffer));
+            memcpy(&buffer[i], &buffer[i + 1], (n_buffer - i - 1) * sizeof(*buffer));
             n_buffer--;
             return 1;
         }
@@ -116,13 +118,12 @@ static void send_repeat(unsigned int code) {
 }
 
 // input {{{2
-static int read_one_key(struct input_event *ev) {
+static int read_one_key(struct input_event* ev) {
     int err = libevdev_next_event(idev, LIBEVDEV_READ_FLAG_NORMAL | LIBEVDEV_READ_FLAG_BLOCKING, ev);
     if (err) {
         fprintf(stderr, "Failed: (%d) %s\n", -err, strerror(err));
         exit(1);
     }
-
     if (ev->type != EV_KEY) {
         libevdev_uinput_write_event(odev, ev->type, ev->code, ev->value);
         return -1;
@@ -139,12 +140,14 @@ enum {
     IDLE,
     DECIDE,
     SHIFT,
-} state = IDLE;
+} state
+    = IDLE;
 
-static void state_idle(void) {  // {{{2
+static void state_idle(void) { // {{{2
     struct input_event ev;
     for (;;) {
-        while (read_one_key(&ev));
+        while (read_one_key(&ev))
+            ;
 
         if (ev.code == KEY_SPACE && ev.value == V_PRESS) {
             state = DECIDE;
@@ -155,7 +158,7 @@ static void state_idle(void) {  // {{{2
     }
 }
 
-static void state_decide(void) {    // {{{2
+static void state_decide(void) { // {{{2
     n_buffer = 0;
     struct input_event ev;
     struct timeval timeout;
@@ -166,11 +169,12 @@ static void state_decide(void) {    // {{{2
 
     while (timeout.tv_usec >= 0) {
         FD_SET(fd, &set);
-        int nfds = select(fd+1, &set, NULL, NULL, &timeout);
+        int nfds = select(fd + 1, &set, NULL, NULL, &timeout);
         if (!nfds)
             break;
 
-        while (read_one_key(&ev));
+        while (read_one_key(&ev))
+            ;
 
         if (ev.value == V_PRESS) {
             buffer_append(ev.code);
@@ -180,7 +184,7 @@ static void state_decide(void) {    // {{{2
         if (ev.code == KEY_SPACE && ev.value == V_RELEASE) {
             send_key(KEY_SPACE, V_PRESS);
             send_key(KEY_SPACE, V_RELEASE);
-            for (int i=0; i<n_buffer; i++)
+            for (int i = 0; i < n_buffer; i++)
                 send_key(buffer[i], V_PRESS);
             state = IDLE;
             return;
@@ -201,7 +205,7 @@ static void state_decide(void) {    // {{{2
     }
 
     printf("timed out\n");
-    for (int i=0; i<n_buffer; i++) {
+    for (int i = 0; i < n_buffer; i++) {
         unsigned int code = key_map(buffer[i]);
         if (!code)
             code = buffer[i];
@@ -214,10 +218,11 @@ static void state_shift(void) {
     n_buffer = 0;
     struct input_event ev;
     for (;;) {
-        while (read_one_key(&ev));
+        while (read_one_key(&ev))
+            ;
 
         if (ev.code == KEY_SPACE && ev.value == V_RELEASE) {
-            for (int i=0; i<n_buffer; i++)
+            for (int i = 0; i < n_buffer; i++)
                 send_key(buffer[i], V_RELEASE);
             state = IDLE;
             return;
@@ -236,7 +241,6 @@ static void state_shift(void) {
         } else {
             send_key(ev.code, ev.value);
         }
-
     }
 }
 
@@ -244,21 +248,20 @@ static void run_state_machine(void) {
     for (;;) {
         printf("state %d\n", state);
         switch (state) {
-            case IDLE:
-                state_idle();
-                break;
-            case DECIDE:
-                state_decide();
-                break;
-            case SHIFT:
-                state_shift();
-                break;
+        case IDLE:
+            state_idle();
+            break;
+        case DECIDE:
+            state_decide();
+            break;
+        case SHIFT:
+            state_shift();
+            break;
         }
     }
 }
 
-
-int main(int argc, char **argv) {   // {{{1
+int main(int argc, char** argv) { // {{{1
     if (argc < 2) {
         printf("usage: %s /dev/input/...", argv[0]);
         return 1;
