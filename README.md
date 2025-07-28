@@ -1,6 +1,13 @@
 spacefn-evdev
 =============
 
+# Main changes
+
+1. Change arrows key bindings to `hjkl` and other navigation keys.
+2. Delete keys from blacklist to be able to use them without pressing space.
+_____________________________________________________________________________
+
+
 This is a little tool to implement
 [the SpaceFn keyboard layout](https://geekhack.org/index.php?topic=51069.0)
 on Linux.
